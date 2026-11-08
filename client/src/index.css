@@ -57,6 +57,14 @@
   --color-outline: #86948a;
   --color-outline-variant: #3c4a42;
 
+  /* Hydra Cloud: tarjetas, gráficas y avisos */
+  --color-card: #0f172a;
+  --color-water: #2f9fd0;      /* serie "suelo" (validada CVD sobre fondo oscuro) */
+  --color-water-ink: #8fd0f0;
+  --color-amber: #c2802e;      /* serie "aire" */
+  --color-amber-ink: #f0c27e;
+  --color-warn: #f5c26b;
+
   --color-error: #ffb4ab;
   --color-on-error: #690005;
   --color-error-container: #93000a;
@@ -138,6 +146,7 @@
   --radius-lg: 0.25rem;
   --radius-xl: 0.5rem;
   --radius-full: 0.75rem;
+  --radius-pill: 9999px;       /* para círculos y píldoras reales */
 }
 
 /* Estilos base globales */
@@ -163,4 +172,12 @@
   }
 }
 
-::-webkit-scrollbar { display: none; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+
+/* Barras de desplazamiento discretas (antes estaban ocultas y no se veía que la actividad hace scroll) */
+* { scrollbar-width: thin; scrollbar-color: var(--color-surface-container-highest) transparent; }

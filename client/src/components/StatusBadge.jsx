@@ -1,25 +1,18 @@
 // client/src/components/StatusBadge.jsx
-export default function StatusBadge({ children, tone = 'primary', dot = true, pulse = false }) {
-  const tones = {
-    primary: 'bg-primary/15 text-primary',
-    secondary: 'bg-secondary/15 text-secondary',
-    tertiary: 'bg-tertiary/15 text-tertiary',
-    neutral: 'bg-surface-container-highest text-on-surface',
-    error: 'bg-error/15 text-error',
-  };
-  const dotTones = {
-    primary: 'bg-primary',
-    secondary: 'bg-secondary',
-    tertiary: 'bg-tertiary',
-    neutral: 'bg-outline',
-    error: 'bg-error',
-  };
+const TONES = {
+  primary: 'bg-primary/12 text-primary border-primary/25',
+  tertiary: 'bg-tertiary/12 text-tertiary border-tertiary/25',
+  warn: 'bg-warn/12 text-warn border-warn/30',
+  error: 'bg-error/12 text-error border-error/30',
+  neutral: 'bg-white/5 text-on-surface-variant border-white/10',
+};
+const DOT = { primary: 'bg-primary', tertiary: 'bg-tertiary', warn: 'bg-warn', error: 'bg-error', neutral: 'bg-outline' };
 
+export default function StatusBadge({ children, tone = 'primary', icon, dot = !icon, pulse = false, className = '' }) {
   return (
-    <span
-      className={`px-space-sm py-1 rounded-full font-body-sm font-semibold flex items-center gap-1.5 ${tones[tone]}`}
-    >
-      {dot && <span className={`w-2 h-2 rounded-full ${dotTones[tone]} ${pulse ? 'animate-pulse' : ''}`} />}
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill border text-body-sm font-semibold whitespace-nowrap ${TONES[tone]} ${className}`}>
+      {dot && <span className={`w-2 h-2 rounded-pill ${DOT[tone]} ${pulse ? 'animate-pulse' : ''}`} aria-hidden="true" />}
+      {icon && <span className="material-symbols-outlined text-[16px]" aria-hidden="true">{icon}</span>}
       {children}
     </span>
   );
