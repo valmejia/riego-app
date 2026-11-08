@@ -1,0 +1,15 @@
+# Dependencias y builds
+node_modules/
+dist/
+
+# Secretos: nunca subir credenciales
+.env
+.env.*
+!.env.example
+
+# Sistema / editor
+.DS_Store
+*.log
+
+# Credenciales del Arduino
+arduino/**/arduino_secrets.h
