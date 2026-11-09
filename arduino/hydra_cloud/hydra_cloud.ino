@@ -41,6 +41,12 @@ const char* API_HOST      = SECRET_API_HOST;
 const char* DEVICE_TOKEN  = SECRET_DEVICE_TOKEN;
 const char* DEVICE_ID     = "maceta1";
 
+// Conexión del Arduino con la API (ngrok):
+//   false → HTTP puerto 80. Funciona aunque el módulo WiFi no acepte el certificado
+//           de ngrok. Arranca ngrok con:  ngrok http 5000 --url=TU-DOMINIO --scheme http,https
+//   true  → HTTPS puerto 443 (requiere que el certificado de ngrok sea aceptado).
+const bool API_HTTPS = false;
+
 // ---------- PINES ----------
 #define RELAY_PIN 7
 #define SOIL_PIN  A1
@@ -76,7 +82,8 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 DHT dht(DHTPIN, DHTTYPE);
 
 WiFiSSLClient clientMake;
-WiFiSSLClient clientApi;
+WiFiSSLClient clientApi;       // API por HTTPS
+WiFiClient    clientApiPlano;  // API por HTTP (API_HTTPS = false)
 
 // ---------- ESTADO ----------
 int   humedadSuelo = 0;
@@ -225,7 +232,7 @@ void asegurarWifi() {
 
 // ---------- HTTP ----------
 // Lee la respuesta completa y devuelve solo el JSON del cuerpo.
-String leerRespuesta(WiFiSSLClient& c, unsigned long timeoutMs, int& status) {
+String leerRespuesta(Client& c, unsigned long timeoutMs, int& status) {
   String resp = "";
   unsigned long t = millis();
   while ((c.connected() || c.available()) && millis() - t < timeoutMs) {
@@ -242,22 +249,26 @@ String leerRespuesta(WiFiSSLClient& c, unsigned long timeoutMs, int& status) {
 
 bool apiRequest(const char* metodo, const String& ruta, String& cuerpo, unsigned long timeoutMs) {
   if (!wifiOk()) return false;
-  clientApi.stop();
+  Client& c = API_HTTPS ? (Client&)clientApi : (Client&)clientApiPlano;
+  c.stop();
   mostrarRiego(true);
-  if (!clientApi.connect(API_HOST, 443)) {
+  if (!c.connect(API_HOST, API_HTTPS ? 443 : 80)) {
     apiOk = false;
-    Serial.print("API: fallo de conexion con "); Serial.println(API_HOST);
+    Serial.print("API: fallo de conexion con "); Serial.print(API_HOST);
+    Serial.println(API_HTTPS ? " (HTTPS)" : " (HTTP)");
     gestionarBomba();
     return false;
   }
-  clientApi.print(metodo); clientApi.print(" "); clientApi.print(ruta); clientApi.println(" HTTP/1.1");
-  clientApi.print("Host: "); clientApi.println(API_HOST);
-  if (strlen(DEVICE_TOKEN) > 0) { clientApi.print("Authorization: Bearer "); clientApi.println(DEVICE_TOKEN); }
-  clientApi.println("Content-Length: 0");
-  clientApi.println("Connection: close");
-  clientApi.println();
+  c.print(metodo); c.print(" "); c.print(ruta); c.println(" HTTP/1.1");
+  c.print("Host: "); c.println(API_HOST);
+  c.println("User-Agent: HydraCloud-UNO-R4");
+  c.println("ngrok-skip-browser-warning: 1");
+  if (strlen(DEVICE_TOKEN) > 0) { c.print("Authorization: Bearer "); c.println(DEVICE_TOKEN); }
+  c.println("Content-Length: 0");
+  c.println("Connection: close");
+  c.println();
   int status = 0;
-  cuerpo = leerRespuesta(clientApi, timeoutMs, status);
+  cuerpo = leerRespuesta(c, timeoutMs, status);
   apiOk = status >= 200 && status < 300;
   if (!apiOk) { Serial.print("API: HTTP "); Serial.println(status); return false; }
   return true;
@@ -404,8 +415,10 @@ void setup() {
   unsigned long inicio = millis();
   while (!wifiOk() && millis() - inicio < 20000UL) { delay(500); Serial.print("."); }
   Serial.println();
+  Serial.print("Firmware WiFi: "); Serial.println(WiFi.firmwareVersion());
   if (wifiOk()) {
     Serial.print("IP Asignada: "); Serial.println(WiFi.localIP());
+    Serial.print("API: "); Serial.print(API_HTTPS ? "https://" : "http://"); Serial.println(API_HOST);
     estadoTexto = "WiFi OK";
   } else {
     Serial.println("Error WiFi (se reintentara en el loop).");
