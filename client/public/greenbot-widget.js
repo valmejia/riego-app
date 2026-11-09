@@ -16,14 +16,13 @@
  *   data-title / data-subtitle / data-welcome / data-support   textos opcionales
  *
  * Contrato con Make:
- *   Envía   POST  { "device_id": "maceta1", "messages": [ { "role": "user", "content": "..." } ] }
+ *   Envía   POST  { "device_id": "maceta1", "messages": [ ... ], "transcript": "Usuario: ...\nAsistente: ..." }
  *   Recibe  200   { "reply": "..." }
  *
- * Nota sobre el historial: en tu escenario el módulo HTTP de Groq mapea un solo
- * item desde messages[], así que por defecto se envía solo el último mensaje.
- * Para que el chat pueda confirmar el tipo de planta ("¿es un helecho?" → "sí"),
- * el escenario necesita ver también el mensaje anterior: sube data-history
- * (por ejemplo a 6) cuando los módulos de Groq armen el array completo de mensajes.
+ * Nota sobre el historial: el módulo de Groq en Make lee el campo transcript (la
+ * conversación reciente en texto), no messages[]. Para que el chat pueda confirmar
+ * el tipo de planta ("¿es un helecho?" → "sí"), sube data-history (por ejemplo a 6)
+ * una vez que el módulo de Groq use transcript.
  */
 (function () {
   "use strict";
@@ -158,13 +157,21 @@ background:var(--bg);border:1px solid var(--line);border-radius:14px;box-shadow:
     return m ? m[1].replace(/\\n/g, "\n").replace(/\\"/g, '"') : null;
   }
 
+  // Conversación reciente como texto ("Usuario: ..." / "Asistente: ..."), para que Make
+  // la mapee en un solo campo (transcript) sin tener que armar arrays.
+  function toTranscript(history) {
+    return history.map(function (m) {
+      return (m.role === "user" ? "Usuario" : "Asistente") + ": " + m.content;
+    }).join("\n");
+  }
+
   function askGreenBot(history) {
     var ctrl = new AbortController();
     var timer = setTimeout(function () { ctrl.abort(); }, cfg.timeoutMs);
     return fetch(cfg.webhook, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ device_id: cfg.device, messages: history }),
+      body: JSON.stringify({ device_id: cfg.device, messages: history, transcript: toTranscript(history) }),
       signal: ctrl.signal
     }).then(function (res) {
       clearTimeout(timer);

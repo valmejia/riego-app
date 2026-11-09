@@ -1,11 +1,12 @@
 // GreenBot — chat flotante conectado al webhook de Make.
-// Contrato:  POST { device_id, messages:[{role,content}], context:{...lecturas} }  →  200 { reply }
+// Contrato:  POST { device_id, messages:[{role,content}], transcript, context:{...lecturas} }  →  200 { reply }
+// transcript es la conversación reciente en texto: es lo que lee el módulo de Groq en Make.
 // device_id va en la raíz para que Make sepa de qué maceta se habla (varias macetas a futuro).
 import { useEffect, useRef, useState } from 'react';
 import { DEVICE_ID } from '../lib/api';
 
 const WEBHOOK = import.meta.env.VITE_GREENBOT_WEBHOOK || '';
-// Cuántos mensajes enviar a Make. Súbelo cuando el módulo de Groq arme el array completo.
+// Cuántos mensajes enviar a Make. Súbelo (p. ej. a 6) cuando el módulo de Groq use transcript.
 const HISTORY = Number(import.meta.env.VITE_GREENBOT_HISTORY) || 1;
 const STORE = `greenbot_history_v1_${DEVICE_ID}`; // una conversación por maceta
 const WELCOME = 'Hola, soy GreenBot 🌱. Cuéntame qué planta tienes y te ayudo a cuidarla y a ajustar su riego automático.';
@@ -23,13 +24,18 @@ function parseReply(raw) {
   return raw && !raw.trim().startsWith('<') && raw.length < 4000 ? raw : null;
 }
 
+// "Usuario: ...\nAsistente: ..." (mismo formato que greenbot-widget.js)
+function toTranscript(messages) {
+  return messages.map(m => `${m.role === 'user' ? 'Usuario' : 'Asistente'}: ${m.content}`).join('\n');
+}
+
 async function ask(messages, context, device_id) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 30000);
   try {
     const res = await fetch(WEBHOOK, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ device_id, messages, context }), signal: ctrl.signal,
+      body: JSON.stringify({ device_id, messages, transcript: toTranscript(messages), context }), signal: ctrl.signal,
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const reply = parseReply(await res.text());

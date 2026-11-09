@@ -83,5 +83,5 @@ El panel envía (el widget `greenbot-widget.js` manda lo mismo pero sin `context
 - **Prompt sugerido:** `Eres GreenBot, asistente de Hydra Cloud. Hablas de la maceta {{1.device_id}} ({{1.context.planta}}). Datos actuales: suelo {{1.context.humedad_suelo}}%, aire {{1.context.temperatura}} °C / {{1.context.humedad_aire}}%, bomba encendida: {{1.context.bomba_encendida}}, modo {{1.context.modo}}, umbral {{1.context.umbral_riego}}%, Arduino en línea: {{1.context.arduino_en_linea}}.`
 - Si GreenBot debe poder regar, que Make haga `POST /api/comandos` con `{"device_id":"{{1.device_id}}","accion":"regar","duracion":20,"origen":"greenbot"}` y `Authorization: Bearer API_TOKEN`.
 - **JSON roto en Webhook response**: arma la respuesta con *JSON → Create JSON* en lugar de `{"reply":"{{texto}}"}`. El panel lo tolera, pero es frágil.
-- **Memoria**: hoy solo se envía el último mensaje (`VITE_GREENBOT_HISTORY=1`). Súbelo a 6–10 cuando Groq reciba el array completo.
+- **Memoria**: el panel y el widget envían `transcript` ("Usuario: …\nAsistente: …"). Mapéalo en el módulo de Groq y sube `VITE_GREENBOT_HISTORY` / `data-history` a 6 para que recuerde la conversación.
 - **Webhook público**: limita ejecuciones en Make para que nadie gaste tu cuota de Groq.

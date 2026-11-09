@@ -78,6 +78,7 @@ El panel envía al webhook de Make:
 
 ```json
 { "device_id": "maceta1",
+  "transcript": "Usuario: ¿Cómo está mi planta?",
   "messages": [{ "role": "user", "content": "¿Cómo está mi planta?" }],
   "context": { "planta": "Albahaca Dulce", "humedad_suelo": 44, "temperatura": 22.1,
                "humedad_aire": 58, "bomba_encendida": false, "modo": "auto", "umbral_riego": 30,
@@ -87,7 +88,7 @@ El panel envía al webhook de Make:
 y espera `200 { "reply": "…" }`.
 
 Para incrustar GreenBot en otra web está `client/public/greenbot-widget.js` (prueba: `client/public/greenbot-demo.html`).
-Envía `{ device_id, messages }` sin `context`, así que en Make conviene leer las lecturas con `GET /api/humedad/{{device_id}}`:
+Envía `{ device_id, messages, transcript }` sin `context`, así que en Make conviene leer las lecturas con `GET /api/humedad/{{device_id}}`:
 
 ```html
 <script src="greenbot-widget.js" data-webhook="https://hook.us2.make.com/TU_ID" data-device="maceta1" data-history="1" defer></script>
