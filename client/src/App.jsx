@@ -23,7 +23,7 @@ import { haceCuanto, fechaHora } from './lib/format';
 const STALE_MS = (Number(import.meta.env.VITE_STALE_MIN) || 3) * 60 * 1000;
 
 export default function App() {
-  const now = useNow();
+  const now = useNow(3000);
   const [horas, setHoras] = useState(24);
   const [ajustes, setAjustes] = useState(false);
   const [enviando, setEnviando] = useState(false);
@@ -32,7 +32,7 @@ export default function App() {
 
   const tel = usePolling(api.ultima, 5000);
   const cmd = usePolling(() => api.comandos(15), 5000);
-  const disp = usePolling(api.dispositivo, 15000);
+  const disp = usePolling(api.dispositivo, 4000); // incluye el estado real de la bomba
   const hist = usePolling(() => api.historial(horas), 60000, [horas]);
   const health = usePolling(api.health, 30000);
 
@@ -49,10 +49,10 @@ export default function App() {
 
   const pendiente = cmd.data?.find(c => c.estado === 'pendiente') || null;
   const ultimoRiego = cmd.data?.find(c => c.accion === 'regar' && c.estado === 'ejecutado');
-  // Riego manual en curso: el Arduino confirma la orden al empezar a regar.
-  const ultimaOrden = cmd.data?.find(c => c.estado === 'ejecutado');
-  const riegoManualActivo = ultimaOrden?.accion === 'regar' && ultimaOrden.ejecutadoEn &&
-    now - new Date(ultimaOrden.ejecutadoEn).getTime() < (ultimaOrden.duracion || 30) * 1000;
+  // Estado real del relé: lo informa el Arduino cada 3-10 s en /pendiente.
+  // Si lleva más de 30 s sin contacto no se puede afirmar que siga regando.
+  const contacto = disp.data?.ultimo_contacto ? new Date(disp.data.ultimo_contacto).getTime() : 0;
+  const bombaReal = contacto && now - contacto < 30000 ? !!disp.data.bomba : false;
 
   const extremos = useMemo(() => {
     const puntos = hist.data?.puntos || [];
@@ -87,10 +87,10 @@ export default function App() {
   const contexto = useMemo(() => ({
     device_id: DEVICE_ID, planta: d?.nombre_planta, modo: d?.modo, umbral_riego: d?.umbral_riego,
     humedad_suelo: data?.humedad ?? null, temperatura: data?.temperatura ?? null,
-    humedad_aire: data?.humedad_ambiental ?? null, bomba_encendida: !!data?.riego,
+    humedad_aire: data?.humedad_ambiental ?? null, bomba_encendida: bombaReal,
     motivo: data?.motivo ?? null, lluvia_mm: data?.lluvia_mm ?? null, prob_lluvia: data?.prob_lluvia_max ?? null,
     ultima_lectura: fechaLectura || null, arduino_en_linea: !!data && !offline,
-  }), [d, data, fechaLectura, offline]);
+  }), [d, data, fechaLectura, offline, bombaReal]);
 
   return (
     <div className="bg-surface text-on-surface font-body-md antialiased min-h-screen flex flex-col">
@@ -128,7 +128,7 @@ export default function App() {
         <div className={`grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-space-lg transition-opacity ${offline ? 'opacity-70' : ''}`}>
           <SoilCard data={data} umbral={d?.umbral_riego ?? 30} />
           <AmbientCard data={data} extremos={extremos} />
-          <PumpCard data={data} regandoAhora={riegoManualActivo} pendiente={pendiente} ultimoRiego={ultimoRiego?.ejecutadoEn || ultimoRiego?.timestamp}
+          <PumpCard regando={bombaReal} restante={disp.data?.bomba_restante} pendiente={pendiente} ultimoRiego={ultimoRiego?.ejecutadoEn || ultimoRiego?.timestamp}
             enviando={enviando} offline={offline}
             onRegar={dur => accion(() => api.regar(dur), `Orden de riego enviada (${dur} s)`, [cmd])}
             onDetener={() => accion(api.detener, 'Orden de detener enviada', [cmd])} />

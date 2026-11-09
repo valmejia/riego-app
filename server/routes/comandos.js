@@ -70,6 +70,13 @@ router.get('/pendiente', verificarDispositivo, async (req, res) => {
     await expirarViejos();
     const device_id = leerDevice(req.query.device_id);
     const disp = await Dispositivo.obtener(device_id);
+    // El Arduino informa el estado real de la bomba: ?bomba=1&restante=12
+    const reporte = { ultimo_contacto: new Date() };
+    if (req.query.bomba !== undefined) {
+      reporte.bomba = req.query.bomba === '1' || req.query.bomba === 'true';
+      reporte.bomba_restante = Math.max(0, Math.min(600, Number(req.query.restante) || 0));
+    }
+    await Dispositivo.updateOne({ device_id }, { $set: reporte });
     const f = filtroDevice(device_id);
     const comando =
       (await Comando.findOne({ ...f, ejecutado: false, accion: 'detener' }).sort({ timestamp: 1 })) ||

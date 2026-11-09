@@ -14,8 +14,8 @@
  *   - Consulta las órdenes del panel (antes "Regar ahora" nunca llegaba a la maceta).
  *   - Respeta el modo manual: en manual ignora la decisión automática de Make.
  *   - Riego NO bloqueante: se puede detener desde el panel en medio del riego.
- *   - Tiempo de absorción entre riegos automáticos (evita regar cada 30 s
- *     mientras el agua aún no llega al sensor).
+ *   - Informa el estado real de la bomba en cada consulta (?bomba=1&restante=N).
+ *   - Tiempo de absorción configurable entre riegos automáticos (0 = pruebas).
  *   - No riega en automático si la lectura del HW-080 es imposible (sensor suelto).
  *   - Relé en HIGH antes de configurarlo como salida (sin pulso al arrancar).
  *   - Credenciales fuera del código (arduino_secrets.h).
@@ -62,7 +62,10 @@ const unsigned long INTERVALO_TELEMETRIA = 30000UL;      // Make
 const unsigned long INTERVALO_COMANDOS   = 10000UL;      // API: órdenes del panel
 const unsigned long INTERVALO_COMANDOS_REGANDO = 3000UL; // más rápido para "detener"
 const unsigned long INTERVALO_SENSORES   = 2000UL;       // DHT22: mínimo 2 s
-const unsigned long ABSORCION_MS         = 10UL * 60UL * 1000UL; // espera tras un riego automático
+// Espera tras un riego automático para que el agua llegue al sensor.
+// En 0 para PRUEBAS (Make puede volver a regar en el siguiente ciclo).
+// Para uso normal ponlo en 10UL * 60UL * 1000UL (10 minutos).
+const unsigned long ABSORCION_MS         = 0UL;
 const int           RIEGO_MAX_SEG        = 30;           // tope de seguridad por riego
 
 // ---------- PANTALLA OLED ----------
@@ -98,6 +101,7 @@ unsigned long ultimoComando    = 0;
 unsigned long ultimaLectura    = 0;
 unsigned long ultimoIntentoWifi = 0;
 unsigned long pantallaFijaHasta = 0;  // para mostrar mensajes sin delay()
+bool          reportarYa = false;     // avisar al panel en cuanto cambia la bomba
 
 // ---------- PANTALLAS ----------
 void dibujarGotaDeAgua(int x, int y, int tamano) {
@@ -145,6 +149,7 @@ void encenderBomba(int segundos, const char* origen) {
   bombaEncendida  = true;
   bombaInicio     = millis();
   bombaDuracionMs = (unsigned long)segundos * 1000UL;
+  reportarYa      = true;
   Serial.print(">>> Bomba ON ("); Serial.print(origen); Serial.print(") ");
   Serial.print(segundos); Serial.println(" s");
 }
@@ -155,6 +160,7 @@ void apagarBomba(const char* motivo) {
     bombaEncendida = false;
     ultimoRiegoFin = millis();
     hayRiegoPrevio = true;
+    reportarYa     = true;  // el panel se entera en la siguiente vuelta del loop
     Serial.print(">>> Bomba OFF: "); Serial.println(motivo);
   }
 }
@@ -239,7 +245,13 @@ void completarComando(const String& id) {
 
 void consultarComandos() {
   String cuerpo;
-  if (!apiRequest("GET", String("/api/comandos/pendiente?device_id=") + DEVICE_ID, cuerpo, 4000)) return;
+  // Se informa el estado REAL de la bomba para que el panel no dependa de Make
+  long restante = 0;
+  if (bombaEncendida) restante = (long)(bombaDuracionMs - (millis() - bombaInicio)) / 1000L + 1;
+  String ruta = String("/api/comandos/pendiente?device_id=") + DEVICE_ID +
+                "&bomba=" + (bombaEncendida ? "1" : "0") +
+                "&restante=" + String(restante < 0 ? 0 : restante);
+  if (!apiRequest("GET", ruta, cuerpo, 4000)) return;
 
   StaticJsonDocument<384> doc;
   if (deserializeJson(doc, cuerpo)) { Serial.println("API: JSON invalido"); return; }
@@ -388,7 +400,8 @@ void loop() {
 
   // Órdenes del panel: más seguido mientras riega para poder "detener"
   unsigned long intervaloCmd = bombaEncendida ? INTERVALO_COMANDOS_REGANDO : INTERVALO_COMANDOS;
-  if (ahora - ultimoComando >= intervaloCmd) {
+  if (reportarYa || ahora - ultimoComando >= intervaloCmd) {
+    reportarYa = false;
     ultimoComando = ahora;
     consultarComandos();
   }

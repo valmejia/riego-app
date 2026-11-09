@@ -6,11 +6,10 @@ import { fmt, fechaHora } from '../lib/format';
 
 const DURACIONES = [10, 30, 60];
 
-export default function PumpCard({ data, regandoAhora, pendiente, ultimoRiego, onRegar, onDetener, enviando, offline }) {
+export default function PumpCard({ regando, restante, pendiente, ultimoRiego, onRegar, onDetener, enviando, offline }) {
   const [dur, setDur] = useState(30);
-  const regando = !!regandoAhora || (!!data?.riego && data?.motivo === 'regando');
   const estado = regando
-    ? { tone: 'tertiary', label: 'Regando', pulse: true }
+    ? { tone: 'tertiary', label: restante ? `Regando · ${restante} s` : 'Regando', pulse: true }
     : pendiente ? { tone: 'warn', label: 'Orden en cola', pulse: true }
     : { tone: 'neutral', label: 'En reposo', pulse: false };
 

@@ -84,7 +84,8 @@ http.createServer(async (req, res) => {
       if (!auth(req)) return send(res, 403, { ok: false, error: 'Token invalido' });
       disp = { ...disp, ...body, actualizado: new Date() };
     }
-    return send(res, 200, disp);
+    const bomba = now() < pumpUntil;
+    return send(res, 200, { ...disp, bomba, bomba_restante: bomba ? Math.ceil((pumpUntil - now()) / 1000) : 0, ultimo_contacto: new Date() });
   }
   if (p === '/greenbot' && req.method === 'POST') {
     // El widget no manda context: se usa la última lectura, como haría Make con GET /api/humedad/:device_id

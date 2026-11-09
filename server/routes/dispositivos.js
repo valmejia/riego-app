@@ -6,7 +6,8 @@ const { verificarToken } = require('../middleware/auth');
 
 const publico = d => ({
   device_id: d.device_id, nombre_planta: d.nombre_planta,
-  modo: d.modo, umbral_riego: d.umbral_riego, actualizado: d.actualizado
+  modo: d.modo, umbral_riego: d.umbral_riego, actualizado: d.actualizado,
+  bomba: !!d.bomba, bomba_restante: d.bomba_restante || 0, ultimo_contacto: d.ultimo_contacto || null
 });
 
 router.get('/:device_id', async (req, res) => {

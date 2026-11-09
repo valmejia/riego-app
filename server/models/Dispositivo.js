@@ -6,7 +6,11 @@ const DispositivoSchema = new mongoose.Schema({
   nombre_planta: { type: String, default: 'Albahaca Dulce', maxlength: 60 },
   modo:          { type: String, enum: ['auto', 'manual'], default: 'auto' },
   umbral_riego:  { type: Number, min: 5, max: 90, default: 30 }, // % suelo bajo el que se riega
-  actualizado:   { type: Date, default: Date.now }
+  actualizado:   { type: Date, default: Date.now },
+  // Estado REAL que informa el Arduino en cada consulta a /pendiente
+  bomba:             { type: Boolean, default: false },
+  bomba_restante:    { type: Number, default: 0 },     // segundos que le quedan al riego
+  ultimo_contacto:   { type: Date, default: null }
 });
 
 DispositivoSchema.statics.obtener = async function (device_id) {
