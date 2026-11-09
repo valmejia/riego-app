@@ -53,6 +53,8 @@ export default function App() {
   // Si lleva más de 30 s sin contacto no se puede afirmar que siga regando.
   const contacto = disp.data?.ultimo_contacto ? new Date(disp.data.ultimo_contacto).getTime() : 0;
   const bombaReal = contacto && now - contacto < 30000 ? !!disp.data.bomba : false;
+  // ¿El Arduino está recogiendo órdenes? (consulta /pendiente cada 10 s)
+  const recibeOrdenes = !!contacto && now - contacto < 45000;
 
   const extremos = useMemo(() => {
     const puntos = hist.data?.puntos || [];
@@ -73,7 +75,8 @@ export default function App() {
     setEnviando(true);
     try {
       const r = await fn();
-      avisar(r?.mensaje === 'Ya hay un riego en cola' ? r.mensaje : okMsg);
+      const informativo = ['Ya hay un riego en cola', 'Riego en cola cancelado', 'La bomba ya está apagada'];
+      avisar(informativo.includes(r?.mensaje) ? r.mensaje : okMsg);
       refrescar?.forEach(p => p.refresh());
     } catch (e) {
       avisar(e.message, true);
@@ -128,10 +131,12 @@ export default function App() {
         <div className={`grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-space-lg transition-opacity ${offline ? 'opacity-70' : ''}`}>
           <SoilCard data={data} umbral={d?.umbral_riego ?? 30} />
           <AmbientCard data={data} extremos={extremos} />
-          <PumpCard regando={bombaReal} restante={disp.data?.bomba_restante} pendiente={pendiente} ultimoRiego={ultimoRiego?.ejecutadoEn || ultimoRiego?.timestamp}
+          <PumpCard regando={bombaReal} restante={disp.data?.bomba_restante} pendiente={pendiente}
+            recibeOrdenes={recibeOrdenes} ultimoContacto={disp.data?.ultimo_contacto}
+            ultimoRiego={disp.data?.ultimo_riego || ultimoRiego?.ejecutadoEn || ultimoRiego?.timestamp}
             enviando={enviando} offline={offline}
             onRegar={dur => accion(() => api.regar(dur), `Orden de riego enviada (${dur} s)`, [cmd])}
-            onDetener={() => accion(api.detener, 'Orden de detener enviada', [cmd])} />
+            onDetener={() => accion(api.detener, 'Orden de detener enviada', [cmd, disp])} />
           <ControlCard key={d?.umbral_riego ?? 'x'} disp={d} enviando={enviando}
             onGuardar={c => accion(() => api.guardarDispositivo(c), c.modo ? `Modo ${c.modo === 'auto' ? 'automático' : 'manual'} activado` : 'Umbral guardado', [disp])} />
           <ForecastCard data={data} />

@@ -42,8 +42,19 @@ router.post('/', verificarToken, async (req, res) => {
 
     // "detener" anula cualquier "regar" que siga en cola.
     if (accion === 'detener') {
-      await Comando.updateMany(
+      const cancelados = await Comando.updateMany(
         { ...filtroDevice(device_id), ejecutado: false, accion: 'regar' },
+        { $set: { ejecutado: true, estado: 'cancelado' } }
+      );
+      // Si la bomba está apagada no tiene sentido dejar un "detener" en cola:
+      // se quedaría pendiente y bloquearía el siguiente riego.
+      const disp = await Dispositivo.findOne({ device_id }).lean();
+      const reciente = disp?.ultimo_contacto && Date.now() - new Date(disp.ultimo_contacto).getTime() < 30000;
+      if (!(disp?.bomba && reciente)) {
+        return res.status(200).json({ ok: true, mensaje: cancelados.modifiedCount ? 'Riego en cola cancelado' : 'La bomba ya está apagada' });
+      }
+      await Comando.updateMany(
+        { ...filtroDevice(device_id), ejecutado: false, accion: 'detener' },
         { $set: { ejecutado: true, estado: 'cancelado' } }
       );
     } else {
@@ -75,6 +86,7 @@ router.get('/pendiente', verificarDispositivo, async (req, res) => {
     if (req.query.bomba !== undefined) {
       reporte.bomba = req.query.bomba === '1' || req.query.bomba === 'true';
       reporte.bomba_restante = Math.max(0, Math.min(600, Number(req.query.restante) || 0));
+      if (reporte.bomba && !disp.bomba) reporte.ultimo_riego = new Date();
     }
     await Dispositivo.updateOne({ device_id }, { $set: reporte });
     const f = filtroDevice(device_id);

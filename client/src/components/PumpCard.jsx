@@ -2,15 +2,16 @@
 import { useState } from 'react';
 import GlowCard, { CardHeader } from './GlowCard';
 import StatusBadge from './StatusBadge';
-import { fmt, fechaHora } from '../lib/format';
+import { fmt, fechaHora, haceCuanto } from '../lib/format';
 
 const DURACIONES = [10, 30, 60];
 
-export default function PumpCard({ regando, restante, pendiente, ultimoRiego, onRegar, onDetener, enviando, offline }) {
+export default function PumpCard({ regando, restante, pendiente, recibeOrdenes, ultimoContacto, ultimoRiego, onRegar, onDetener, enviando, offline }) {
   const [dur, setDur] = useState(30);
   const estado = regando
     ? { tone: 'tertiary', label: restante ? `Regando · ${restante} s` : 'Regando', pulse: true }
-    : pendiente ? { tone: 'warn', label: 'Orden en cola', pulse: true }
+    : pendiente?.accion === 'regar' ? { tone: 'warn', label: 'Riego en cola', pulse: true }
+    : pendiente ? { tone: 'warn', label: 'Detener en cola', pulse: true }
     : { tone: 'neutral', label: 'En reposo', pulse: false };
 
   return (
@@ -32,7 +33,7 @@ export default function PumpCard({ regando, restante, pendiente, ultimoRiego, on
       </fieldset>
 
       <div className="flex gap-space-sm">
-        <button type="button" onClick={() => onRegar(dur)} disabled={enviando || regando || !!pendiente}
+        <button type="button" onClick={() => onRegar(dur)} disabled={enviando || regando || pendiente?.accion === 'regar'}
           className="flex-1 py-3 px-4 rounded-xl border-0 bg-tertiary text-on-tertiary font-bold text-body-lg flex items-center justify-center gap-2 cursor-pointer transition-opacity hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed">
           <span className="material-symbols-outlined text-[20px]" aria-hidden="true">water_drop</span>
           Regar ahora
@@ -43,10 +44,19 @@ export default function PumpCard({ regando, restante, pendiente, ultimoRiego, on
           Detener
         </button>
       </div>
-      {offline && (
+      {!recibeOrdenes ? (
+        <p role="status" className="text-body-sm text-warn m-0 mt-space-sm flex items-start gap-1">
+          <span className="material-symbols-outlined text-[16px]" aria-hidden="true">warning</span>
+          <span>
+            El Arduino no está recogiendo órdenes{ultimoContacto ? ` (último contacto ${haceCuanto(ultimoContacto)})` : ''}.
+            Revisa que tenga el sketch nuevo y <code className="font-label-code">API_HOST</code> con tu dominio de ngrok.
+            Las órdenes caducan a los 10 min.
+          </span>
+        </p>
+      ) : offline && (
         <p className="text-body-sm text-warn m-0 mt-space-sm flex items-center gap-1">
           <span className="material-symbols-outlined text-[16px]" aria-hidden="true">warning</span>
-          El Arduino no reporta: la orden se ejecutará al reconectar (caduca a los 10 min).
+          Make no envía lecturas recientes, pero el Arduino sí recibe órdenes.
         </p>
       )}
 

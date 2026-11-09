@@ -29,6 +29,7 @@ let comandos = [
   { id: 'c2', accion: 'regar', duracion: 30, origen: 'app', estado: 'expirado', timestamp: new Date(now() - 26 * 36e5) },
 ];
 let pumpUntil = 0;
+let ultimoRiego = null;
 
 // Cada 10 s llega una lectura nueva y se "ejecutan" las órdenes pendientes.
 setInterval(() => {
@@ -37,6 +38,7 @@ setInterval(() => {
   if (p) {
     p.estado = 'ejecutado'; p.ejecutadoEn = new Date();
     pumpUntil = p.accion === 'regar' ? now() + p.duracion * 1000 : 0;
+    if (p.accion === 'regar') ultimoRiego = new Date();
   }
   const regando = now() < pumpUntil;
   const hum = Math.min(90, last.humedad + (regando ? 4 : -0.1));
@@ -85,7 +87,7 @@ http.createServer(async (req, res) => {
       disp = { ...disp, ...body, actualizado: new Date() };
     }
     const bomba = now() < pumpUntil;
-    return send(res, 200, { ...disp, bomba, bomba_restante: bomba ? Math.ceil((pumpUntil - now()) / 1000) : 0, ultimo_contacto: new Date() });
+    return send(res, 200, { ...disp, bomba, bomba_restante: bomba ? Math.ceil((pumpUntil - now()) / 1000) : 0, ultimo_contacto: new Date(), ultimo_riego: ultimoRiego });
   }
   if (p === '/greenbot' && req.method === 'POST') {
     // El widget no manda context: se usa la última lectura, como haría Make con GET /api/humedad/:device_id

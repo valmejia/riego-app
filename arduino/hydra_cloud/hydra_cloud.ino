@@ -102,6 +102,11 @@ unsigned long ultimaLectura    = 0;
 unsigned long ultimoIntentoWifi = 0;
 unsigned long pantallaFijaHasta = 0;  // para mostrar mensajes sin delay()
 bool          reportarYa = false;     // avisar al panel en cuanto cambia la bomba
+bool          apiOk      = true;      // resultado de la última llamada a la API
+unsigned long ultimoDibujoRiego = 0;
+// Mientras riega solo se consulta la API si queda al menos este margen:
+// una conexión lenta nunca debe alargar el riego.
+const unsigned long MARGEN_CONSULTA_REGANDO = 6000UL;
 
 // ---------- PANTALLAS ----------
 void dibujarGotaDeAgua(int x, int y, int tamano) {
@@ -132,6 +137,19 @@ void pantallaRiego(int segundosRestantes) {
   display.display();
 }
 
+unsigned long restanteRiegoMs() {
+  unsigned long pasado = millis() - bombaInicio;
+  return pasado >= bombaDuracionMs ? 0 : bombaDuracionMs - pasado;
+}
+
+// Redibuja la gotita y la cuenta regresiva (como mucho 4 veces por segundo).
+void mostrarRiego(bool forzar) {
+  if (!bombaEncendida) return;
+  if (!forzar && millis() - ultimoDibujoRiego < 250) return;
+  ultimoDibujoRiego = millis();
+  pantallaRiego((int)((restanteRiegoMs() + 999UL) / 1000UL));
+}
+
 void pantallaMensaje(const char* titulo, const char* grande, const String& abajo, unsigned long ms) {
   display.clearDisplay();
   display.setTextColor(SSD1306_WHITE);
@@ -150,6 +168,8 @@ void encenderBomba(int segundos, const char* origen) {
   bombaInicio     = millis();
   bombaDuracionMs = (unsigned long)segundos * 1000UL;
   reportarYa      = true;
+  pantallaFijaHasta = 0;
+  mostrarRiego(true);   // la gotita aparece en cuanto se activa el relé
   Serial.print(">>> Bomba ON ("); Serial.print(origen); Serial.print(") ");
   Serial.print(segundos); Serial.println(" s");
 }
@@ -170,6 +190,7 @@ void gestionarBomba() {
   if (bombaEncendida && millis() - bombaInicio >= bombaDuracionMs) {
     apagarBomba("tiempo cumplido");
     estadoTexto = "Riego completado";
+    actualizarPantalla();
   }
 }
 
@@ -209,7 +230,8 @@ String leerRespuesta(WiFiSSLClient& c, unsigned long timeoutMs, int& status) {
   unsigned long t = millis();
   while ((c.connected() || c.available()) && millis() - t < timeoutMs) {
     while (c.available()) { resp += (char)c.read(); t = millis(); }
-    gestionarBomba();  // la bomba se apaga a tiempo aunque la red tarde
+    gestionarBomba();     // la bomba se apaga a tiempo aunque la red tarde
+    mostrarRiego(false);  // y la cuenta regresiva sigue avanzando
   }
   c.stop();
   int sp = resp.indexOf(' ');
@@ -221,7 +243,13 @@ String leerRespuesta(WiFiSSLClient& c, unsigned long timeoutMs, int& status) {
 bool apiRequest(const char* metodo, const String& ruta, String& cuerpo, unsigned long timeoutMs) {
   if (!wifiOk()) return false;
   clientApi.stop();
-  if (!clientApi.connect(API_HOST, 443)) { Serial.println("API: fallo de conexion"); return false; }
+  mostrarRiego(true);
+  if (!clientApi.connect(API_HOST, 443)) {
+    apiOk = false;
+    Serial.print("API: fallo de conexion con "); Serial.println(API_HOST);
+    gestionarBomba();
+    return false;
+  }
   clientApi.print(metodo); clientApi.print(" "); clientApi.print(ruta); clientApi.println(" HTTP/1.1");
   clientApi.print("Host: "); clientApi.println(API_HOST);
   if (strlen(DEVICE_TOKEN) > 0) { clientApi.print("Authorization: Bearer "); clientApi.println(DEVICE_TOKEN); }
@@ -230,10 +258,8 @@ bool apiRequest(const char* metodo, const String& ruta, String& cuerpo, unsigned
   clientApi.println();
   int status = 0;
   cuerpo = leerRespuesta(clientApi, timeoutMs, status);
-  if (status < 200 || status >= 300) {
-    Serial.print("API: HTTP "); Serial.println(status);
-    return false;
-  }
+  apiOk = status >= 200 && status < 300;
+  if (!apiOk) { Serial.print("API: HTTP "); Serial.println(status); return false; }
   return true;
 }
 
@@ -246,8 +272,7 @@ void completarComando(const String& id) {
 void consultarComandos() {
   String cuerpo;
   // Se informa el estado REAL de la bomba para que el panel no dependa de Make
-  long restante = 0;
-  if (bombaEncendida) restante = (long)(bombaDuracionMs - (millis() - bombaInicio)) / 1000L + 1;
+  long restante = bombaEncendida ? (long)((restanteRiegoMs() + 999UL) / 1000UL) : 0;
   String ruta = String("/api/comandos/pendiente?device_id=") + DEVICE_ID +
                 "&bomba=" + (bombaEncendida ? "1" : "0") +
                 "&restante=" + String(restante < 0 ? 0 : restante);
@@ -273,6 +298,7 @@ void consultarComandos() {
   if (accion == "detener") {
     apagarBomba("orden detener");
     estadoTexto = "Detenido (panel)";
+    actualizarPantalla();
   } else if (accion == "regar" && !bombaEncendida) {
     // Riego manual: el usuario lo pidió, se ignora el tiempo de absorción.
     encenderBomba(duracion, "panel");
@@ -400,16 +426,19 @@ void loop() {
 
   // Órdenes del panel: más seguido mientras riega para poder "detener"
   unsigned long intervaloCmd = bombaEncendida ? INTERVALO_COMANDOS_REGANDO : INTERVALO_COMANDOS;
-  if (reportarYa || ahora - ultimoComando >= intervaloCmd) {
+  // Regando: solo se consulta si la API respondía bien y queda margen de tiempo.
+  // Si la API falla, el riego termina por tiempo y se informa al apagarse.
+  bool puedeConsultar = !bombaEncendida || (apiOk && restanteRiegoMs() > MARGEN_CONSULTA_REGANDO);
+  if (puedeConsultar && (reportarYa || ahora - ultimoComando >= intervaloCmd)) {
     reportarYa = false;
     ultimoComando = ahora;
     consultarComandos();
+    gestionarBomba();
   }
 
   if (bombaEncendida) {
-    long restante = (long)(bombaDuracionMs - (millis() - bombaInicio)) / 1000L + 1;
-    pantallaRiego((int)(restante < 0 ? 0 : restante));
-    delay(50);
+    mostrarRiego(false);
+    delay(20);
     return;  // durante el riego no se envía telemetría
   }
 

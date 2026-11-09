@@ -10,7 +10,8 @@ const DispositivoSchema = new mongoose.Schema({
   // Estado REAL que informa el Arduino en cada consulta a /pendiente
   bomba:             { type: Boolean, default: false },
   bomba_restante:    { type: Number, default: 0 },     // segundos que le quedan al riego
-  ultimo_contacto:   { type: Date, default: null }
+  ultimo_contacto:   { type: Date, default: null },
+  ultimo_riego:      { type: Date, default: null }  // última vez que el relé se encendió (panel o Make)
 });
 
 DispositivoSchema.statics.obtener = async function (device_id) {
