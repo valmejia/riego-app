@@ -74,7 +74,7 @@ Varias macetas: cambia `DEVICE_ID` en cada placa y abre el panel con `?device=ma
 
 ## GreenBot
 
-El panel (y `client/public/greenbot-widget.js` para incrustarlo en otra web) envía al webhook de Make:
+El panel envía al webhook de Make:
 
 ```json
 { "device_id": "maceta1",
@@ -84,4 +84,11 @@ El panel (y `client/public/greenbot-widget.js` para incrustarlo en otra web) env
                "lluvia_mm": 0.4, "prob_lluvia": 20, "arduino_en_linea": true, "ultima_lectura": "…" } }
 ```
 
-y espera `200 { "reply": "…" }`. Ver [docs/REVISION.md](docs/REVISION.md) para cómo usar `context` en Make.
+y espera `200 { "reply": "…" }`.
+
+Para incrustar GreenBot en otra web está `client/public/greenbot-widget.js` (prueba: `client/public/greenbot-demo.html`).
+Envía `{ device_id, messages }` sin `context`, así que en Make conviene leer las lecturas con `GET /api/humedad/{{device_id}}`:
+
+```html
+<script src="greenbot-widget.js" data-webhook="https://hook.us2.make.com/TU_ID" data-device="maceta1" data-history="1" defer></script>
+``` Ver [docs/REVISION.md](docs/REVISION.md) para cómo usar `context` en Make.

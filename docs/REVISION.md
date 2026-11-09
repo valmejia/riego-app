@@ -75,7 +75,7 @@ El Arduino ahora envía además `modo`, `umbral` y `sensor_ok`:
 - Al reenviar a la API (`POST /api/humedad`) mapea `temp → temperatura` y `hum_amb → humedad_ambiental` como hasta ahora.
 
 ### Escenario de GreenBot (panel → Make)
-El panel y `greenbot-widget.js` envían:
+El panel envía (el widget `greenbot-widget.js` manda lo mismo pero sin `context`):
 ```json
 { "device_id": "maceta1", "messages": [...], "context": { "planta": "...", "humedad_suelo": 44, ... } }
 ```

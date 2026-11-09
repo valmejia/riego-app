@@ -87,7 +87,9 @@ http.createServer(async (req, res) => {
     return send(res, 200, disp);
   }
   if (p === '/greenbot' && req.method === 'POST') {
-    const c = body.context || {};
+    // El widget no manda context: se usa la última lectura, como haría Make con GET /api/humedad/:device_id
+    const u = lecturas[lecturas.length - 1];
+    const c = body.context || { planta: disp.nombre_planta, humedad_suelo: u.humedad, temperatura: u.temperatura, umbral_riego: disp.umbral_riego };
     return send(res, 200, { reply: `Tu ${c.planta || 'planta'} tiene la tierra al ${c.humedad_suelo}% y el aire a ${c.temperatura} °C. ${c.humedad_suelo < c.umbral_riego ? 'Conviene regar pronto.' : 'Por ahora no necesita agua.'}` });
   }
   send(res, 404, { ok: false, error: 'Ruta no encontrada' });

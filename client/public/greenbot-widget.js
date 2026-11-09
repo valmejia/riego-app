@@ -1,15 +1,19 @@
 /*!
- * GreenBot widget — chat flotante de Hydra Cloud (versión sin React)
+ * GreenBot widget — chat flotante de Hydra Cloud (riego de plantas, sin React)
  * Conecta con el webhook de Make (módulo Webhook → ... → Webhook response).
  *
  * Uso:
- *   <script src="greenbot-widget.js" data-webhook="https://hook.us2.make.com/TU_ID" data-device-id="maceta1" defer></script>
+ *   <script src="greenbot-widget.js"
+ *           data-webhook="https://hook.us2.make.com/TU_ID"
+ *           data-device="maceta1"
+ *           defer></script>
  *
- * Atributos opcionales en el <script>:
- *   data-device-id="maceta1"    maceta de la que se habla (varias macetas a futuro)
- *   data-title="GreenBot"       título del encabezado
- *   data-subtitle="..."         texto bajo el título
+ * Atributos del <script>:
+ *   data-webhook="..."          (obligatorio) URL del webhook del escenario Chat en Make
+ *   data-device="maceta1"       id de la maceta del usuario; se envía como device_id
+ *                               (también acepta data-device-id, el nombre anterior)
  *   data-history="1"            cuántos mensajes enviar al webhook (ver nota abajo)
+ *   data-title / data-subtitle / data-welcome / data-support   textos opcionales
  *
  * Contrato con Make:
  *   Envía   POST  { "device_id": "maceta1", "messages": [ { "role": "user", "content": "..." } ] }
@@ -17,7 +21,9 @@
  *
  * Nota sobre el historial: en tu escenario el módulo HTTP de Groq mapea un solo
  * item desde messages[], así que por defecto se envía solo el último mensaje.
- * Sube data-history cuando el módulo de Groq arme el array completo de mensajes.
+ * Para que el chat pueda confirmar el tipo de planta ("¿es un helecho?" → "sí"),
+ * el escenario necesita ver también el mensaje anterior: sube data-history
+ * (por ejemplo a 6) cuando los módulos de Groq armen el array completo de mensajes.
  */
 (function () {
   "use strict";
@@ -25,16 +31,17 @@
   var script = document.currentScript;
   var cfg = {
     webhook: (script && script.dataset.webhook) || "PEGA_AQUI_TU_WEBHOOK_URL",
-    deviceId: (script && script.dataset.deviceId) || "maceta1",
+    device: ((script && (script.dataset.device || script.dataset.deviceId)) || "maceta1").trim(),
     title: (script && script.dataset.title) || "GreenBot",
-    subtitle: (script && script.dataset.subtitle) || "Asistente de Hydra Cloud",
-    history: parseInt((script && script.dataset.history) || "1", 10),
+    subtitle: (script && script.dataset.subtitle) || "Asistente de riego de tu planta",
+    history: Math.max(1, parseInt((script && script.dataset.history) || "1", 10) || 1),
     timeoutMs: 30000,
-    
-    welcome: "Hola, soy GreenBot 🌱. Pregúntame cómo está tu planta, cuándo regar o qué significa cada lectura."
+    support: (script && script.dataset.support) || "",
+    welcome: (script && script.dataset.welcome) || "Hola, soy GreenBot 🌱. Cuéntame qué planta tienes y te ayudo a cuidarla y a ajustar su riego automático."
   };
 
-  var STORE_KEY = "greenbot_history_v1_" + cfg.deviceId;
+  // El historial se guarda por maceta, para que no se mezcle entre dispositivos.
+  var STORE_KEY = "greenbot_history_v1_" + cfg.device;
   var messages = load();
 
   function load() {
@@ -81,7 +88,7 @@ background:var(--bg);border:1px solid var(--line);border-radius:14px;box-shadow:
 
   // ── Construcción del DOM ──────────────────────────────────────────────────
   var host = document.createElement("div");
-  host.id = "mintbot-host";
+  host.id = "greenbot-host";
   var shadow = host.attachShadow({ mode: "open" });
 
   shadow.innerHTML =
@@ -157,7 +164,7 @@ background:var(--bg);border:1px solid var(--line);border-radius:14px;box-shadow:
     return fetch(cfg.webhook, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ device_id: cfg.deviceId, messages: history }),
+      body: JSON.stringify({ device_id: cfg.device, messages: history }),
       signal: ctrl.signal
     }).then(function (res) {
       clearTimeout(timer);
@@ -194,7 +201,7 @@ background:var(--bg);border:1px solid var(--line);border-radius:14px;box-shadow:
       })
       .catch(function () {
         wait.remove();
-        bubble("err", "No pude conectar con GreenBot. Intenta de nuevo en un momento.");
+        bubble("err", "No pude conectar con GreenBot. Intenta de nuevo" + (cfg.support ? " o escribe a " + cfg.support : "") + ".");
       })
       .then(function () {
         save();

@@ -8,7 +8,7 @@ const WEBHOOK = import.meta.env.VITE_GREENBOT_WEBHOOK || '';
 // Cuántos mensajes enviar a Make. Súbelo cuando el módulo de Groq arme el array completo.
 const HISTORY = Number(import.meta.env.VITE_GREENBOT_HISTORY) || 1;
 const STORE = `greenbot_history_v1_${DEVICE_ID}`; // una conversación por maceta
-const WELCOME = 'Hola, soy GreenBot 🌱. Pregúntame cómo está tu planta, cuándo regar o qué significa cada lectura.';
+const WELCOME = 'Hola, soy GreenBot 🌱. Cuéntame qué planta tienes y te ayudo a cuidarla y a ajustar su riego automático.';
 const SUGERENCIAS = ['¿Cómo está mi planta?', '¿Debo regar hoy?', '¿Por qué no se activa la bomba?'];
 
 function load() { try { return JSON.parse(sessionStorage.getItem(STORE)) || []; } catch { return []; } }
